@@ -1,0 +1,15 @@
+.kitchen-page .container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.kitchen-desc {
+  margin: 0 0 16px 0;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.kitchen-page {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}

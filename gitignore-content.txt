@@ -1,0 +1,8 @@
+node_modules/
+frontend/dist
+backend/**/bin/
+backend/**/obj/
+.env
+.env.local
+.vs/
+.idea/

@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="system-pos-restaurant.client/system-pos-restaurant.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="system-pos-restaurant.Server/system-pos-restaurant.Server.csproj" />
+</Solution>

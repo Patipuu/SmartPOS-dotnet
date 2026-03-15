@@ -1,0 +1,24 @@
+.status-update {
+  display: flex;
+  gap: 10px;
+}
+
+.status-btn {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.status-btn:hover {
+  background: #f0f0f0;
+}
+
+.status-btn.active {
+  background: #3498db;
+  color: white;
+  border-color: #3498db;
+}

@@ -1,0 +1,78 @@
+.home-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.home-container {
+  max-width: 900px;
+  width: 100%;
+  text-align: center;
+}
+
+.home-container h1 {
+  color: #fff;
+  font-size: 2.2rem;
+  margin: 0 0 8px 0;
+}
+
+.home-subtitle {
+  color: rgba(255,255,255,0.9);
+  font-size: 1rem;
+  margin: 0 0 32px 0;
+}
+
+.role-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.role-card {
+  display: block;
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  text-decoration: none;
+  color: #2c3e50;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.role-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
+.role-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.role-card h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
+  color: #2c3e50;
+}
+
+.role-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #666;
+  line-height: 1.4;
+}
+
+.role-card.customer { border-top: 4px solid #3498db; }
+.role-card.kitchen { border-top: 4px solid #e67e22; }
+.role-card.cashier { border-top: 4px solid #27ae60; }
+.role-card.admin { border-top: 4px solid #9b59b6; }
+
+.home-note {
+  margin-top: 24px;
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.85);
+}

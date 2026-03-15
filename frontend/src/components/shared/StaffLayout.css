@@ -1,0 +1,70 @@
+.staff-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f5f5;
+}
+
+.staff-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: #2c3e50;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.staff-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.staff-header-left h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.role-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  background: rgba(255,255,255,0.2);
+}
+
+.staff-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.staff-user {
+  font-size: 0.9rem;
+  opacity: 0.95;
+}
+
+.staff-header-right .btn-outline {
+  padding: 6px 14px;
+  border: 1px solid rgba(255,255,255,0.6);
+  background: transparent;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.staff-header-right .btn-outline:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.staff-main {
+  flex: 1;
+  padding: 20px;
+}
+
+.staff-main .container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
