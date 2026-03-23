@@ -60,6 +60,7 @@ public class ApplicationDbContext : Microsoft.EntityFrameworkCore.DbContext
              .HasForeignKey(s => s.TerminalId)
              .OnDelete(DeleteBehavior.Restrict);
             e.Property(s => s.CashDifference).HasPrecision(18, 2);
+            e.Property(s => s.OpenCash).HasPrecision(18, 2);
         });
 
         // Table 1-N Order, User 1-N Order

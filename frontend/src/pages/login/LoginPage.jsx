@@ -3,6 +3,34 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import './LoginPage.css'
 
+function mapBackendErrorToPRD(message) {
+  const msg = String(message || '').toLowerCase()
+
+  // Backend hiện tại đang trả "Invalid username or password" cho cả trường hợp sai hoặc bị khóa.
+  // Mapping theo PRD: sai mật khẩu -> "Tài khoản hoặc mật khẩu không chính xác"
+  if (msg.includes('invalid') || msg.includes('username') || msg.includes('password')) {
+    return 'Tài khoản hoặc mật khẩu không chính xác'
+  }
+  if (msg.includes('lock') || msg.includes('khóa') || msg.includes('bị khóa')) {
+    return 'Tài khoản bị khóa, liên hệ quản lý'
+  }
+  return message || 'Đăng nhập thất bại'
+}
+
+function roleToPath(role) {
+  switch (role) {
+    case 'Admin':
+      return '/admin'
+    case 'Cashier':
+      return '/cashier'
+    case 'Kitchen':
+      return '/kitchen'
+    case 'Staff':
+    default:
+      return '/customer'
+  }
+}
+
 const LoginPage = () => {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -10,16 +38,18 @@ const LoginPage = () => {
   const { login, loading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = location.state?.from?.pathname || '/admin'
+  const from = location.state?.from?.pathname
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     const result = await login(username, password)
     if (result.success) {
-      navigate(from, { replace: true })
+      const next = roleToPath(result.role)
+      // Ưu tiên redirect theo role; fallback về route trước đó nếu role không xác định
+      navigate(next || from || '/admin', { replace: true })
     } else {
-      setError(result.message || 'Đăng nhập thất bại')
+      setError(mapBackendErrorToPRD(result.message || 'Đăng nhập thất bại'))
     }
   }
 

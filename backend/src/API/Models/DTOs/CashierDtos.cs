@@ -32,3 +32,23 @@ public class PaymentRequest
     public int InvoiceId { get; set; }
     public string PaymentMethod { get; set; } = "Cash";
 }
+
+// POS Session DTOs
+public class SessionCurrentDto
+{
+    public int SessionId { get; set; }
+    public DateTime OpenTime { get; set; }
+    public decimal OpenCash { get; set; }
+}
+
+public class SessionOpenRequest
+{
+    public decimal OpenCash { get; set; }
+    public int TerminalId { get; set; }
+}
+
+public class SessionCloseRequest
+{
+    public decimal CloseCash { get; set; }
+    public string? CloseNote { get; set; }
+}

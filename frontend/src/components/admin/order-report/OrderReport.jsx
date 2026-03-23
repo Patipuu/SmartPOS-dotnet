@@ -53,7 +53,7 @@ const OrderReport = () => {
                 <td>#{o.orderId}</td>
                 <td>{o.tableId}</td>
                 <td>{Number(o.total).toLocaleString('vi-VN')} đ</td>
-                <td>{o.createdAt ? new Date(o.createdAt).toLocaleString('vi-VN') : '-'}</td>
+                <td>{o.createdTime ? new Date(o.createdTime).toLocaleString('vi-VN') : '-'}</td>
               </tr>
             ))}
           </tbody>

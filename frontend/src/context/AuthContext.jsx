@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { apiClient } from '../api/client'
 
@@ -30,7 +31,7 @@ export function AuthProvider({ children }) {
       }))
       setToken(data.token)
       setUser({ username: data.username, role: data.role, expiresAt: data.expiresAt })
-      return { success: true }
+      return { success: true, role: data.role, username: data.username }
     } catch (err) {
       const message = err.response?.data?.message || 'Đăng nhập thất bại'
       return { success: false, message }

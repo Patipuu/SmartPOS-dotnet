@@ -1,7 +1,7 @@
 import Payment from '../payment/Payment'
 import './InvoiceDetail.css'
 
-const InvoiceDetail = ({ invoice, onPaymentDone }) => {
+const InvoiceDetail = ({ invoice, onPaymentDone, sessionOpen, onNeedOpenShift }) => {
   const details = invoice?.details || []
   const isUnpaid = (invoice?.status || '').toLowerCase() === 'unpaid'
 
@@ -38,7 +38,14 @@ const InvoiceDetail = ({ invoice, onPaymentDone }) => {
       <div className="invoice-total">
         <strong>Tổng cộng: {invoice ? Number(invoice.totalAmount).toLocaleString('vi-VN') : 0} đ</strong>
       </div>
-      {isUnpaid && <Payment invoice={invoice} onPaymentDone={onPaymentDone} />}
+      {isUnpaid && (
+        <Payment
+          invoice={invoice}
+          onPaymentDone={onPaymentDone}
+          sessionOpen={sessionOpen}
+          onNeedOpenShift={onNeedOpenShift}
+        />
+      )}
     </div>
   )
 }

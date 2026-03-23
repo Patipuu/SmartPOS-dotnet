@@ -4,32 +4,41 @@ import './QRScanner.css'
 
 const QRScanner = ({ onScanned }) => {
   const videoRef = useRef(null)
-  const qrScannerRef = useRef(null)
+  const onScannedRef = useRef(onScanned)
+  onScannedRef.current = onScanned
 
   useEffect(() => {
-    if (videoRef.current) {
-      const qrScanner = new QrScanner(
-        videoRef.current,
-        (result) => {
-          // Extract table ID from QR code
-          const tableId = result.data
-          onScanned(tableId)
-          qrScanner.stop()
-        },
-        {
-          returnDetailedScanResult: true,
-        }
-      )
+    const video = videoRef.current
+    if (!video) return
 
-      qrScannerRef.current = qrScanner
-      qrScanner.start()
+    const qrScanner = new QrScanner(
+      video,
+      (result) => {
+        const tableId = result.data
+        onScannedRef.current?.(tableId)
+        const stopRet = qrScanner.stop()
+        if (stopRet && typeof stopRet.catch === 'function') stopRet.catch(() => {})
+      },
+      { returnDetailedScanResult: true }
+    )
 
-      return () => {
-        qrScanner.stop()
+    const startRet = qrScanner.start()
+    if (startRet && typeof startRet.catch === 'function') {
+      startRet.catch((err) => {
+        if (err?.name === 'AbortError') return
+        console.warn('QR Scanner start error:', err)
+      })
+    }
+
+    return () => {
+      const stopRet = qrScanner.stop()
+      if (stopRet && typeof stopRet.catch === 'function') {
+        stopRet.catch(() => {}).finally(() => qrScanner.destroy())
+      } else {
         qrScanner.destroy()
       }
     }
-  }, [onScanned])
+  }, [])
 
   return (
     <div className="qr-scanner">

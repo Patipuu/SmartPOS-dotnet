@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { apiClient } from '../../../api/client'
 import './Menu.css'
 
-const Menu = ({ tableId, onAddToCart }) => {
+const Menu = ({ onAddToCart }) => {
   const [categories, setCategories] = useState([])
   const [menuItems, setMenuItems] = useState([])
   const [selectedCategory, setSelectedCategory] = useState(null)
@@ -52,21 +52,46 @@ const Menu = ({ tableId, onAddToCart }) => {
         ))}
       </div>
       <div className="menu-items">
-        {filteredItems.map((item) => (
-          <div key={item.menuItemId ?? item.id} className="menu-item">
-            <div className="menu-item-info">
-              <h3>{item.name}</h3>
-              <p className="price">{Number(item.price).toLocaleString('vi-VN')} đ</p>
+        {filteredItems.map((item) => {
+          const available = item.isAvailable !== false
+          const menuItemId = item.menuItemId ?? item.id
+
+          return (
+            <div key={menuItemId} className="menu-item">
+              <div className="menu-item-info">
+                <h3>{item.name}</h3>
+
+                {item.imageUrl && (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    className="menu-item-image"
+                    loading="lazy"
+                  />
+                )}
+
+                <p className="price">{Number(item.price).toLocaleString('vi-VN')} đ</p>
+
+                {!available && <span className="badge badge-out-of-stock">Tạm hết</span>}
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!available}
+                onClick={() =>
+                  onAddToCart?.({
+                    menuItemId,
+                    name: item.name,
+                    price: item.price,
+                  })
+                }
+              >
+                {available ? 'Thêm vào giỏ' : 'Không có sẵn'}
+              </button>
             </div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => onAddToCart?.({ menuItemId: item.menuItemId ?? item.id, name: item.name, price: item.price })}
-            >
-              Thêm vào giỏ
-            </button>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

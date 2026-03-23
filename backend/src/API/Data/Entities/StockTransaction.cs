@@ -7,8 +7,9 @@ public class StockTransaction
     [Key]
     public int TransactionId { get; set; }
     public int InventoryItemId { get; set; }
-    public string Type { get; set; } = string.Empty; // In, Out, Adjust
+    public string Type { get; set; } = string.Empty; // Import, Export, BOM_Deduction
     public decimal Quantity { get; set; }
+    public string? Reason { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public InventoryItem InventoryItem { get; set; } = null!;

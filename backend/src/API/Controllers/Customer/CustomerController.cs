@@ -46,7 +46,6 @@ public class CustomerController : ControllerBase
             .ToListAsync();
         var items = await _db.MenuItems
             .AsNoTracking()
-            .Where(m => m.IsAvailable)
             .OrderBy(m => m.SortOrder)
             .Select(m => new MenuItemDto
             {
@@ -67,7 +66,7 @@ public class CustomerController : ControllerBase
     {
         var items = await _db.MenuItems
             .AsNoTracking()
-            .Where(m => m.MenuId == menuId && m.IsAvailable)
+            .Where(m => m.MenuId == menuId)
             .OrderBy(m => m.SortOrder)
             .Select(m => new MenuItemDto
             {
@@ -148,9 +147,10 @@ public class CustomerController : ControllerBase
     [HttpGet("order/status")]
     public async Task<IActionResult> GetOrderStatus([FromQuery] int tableId)
     {
+        // Chỉ trả về đơn đang active (Pending/Preparing/Ready). Đơn đã Served = đã thanh toán, không hiển thị cho khách mới quét QR.
         var order = await _db.Orders
             .AsNoTracking()
-            .Where(o => o.TableId == tableId && o.Status != "Cancelled")
+            .Where(o => o.TableId == tableId && o.Status != "Cancelled" && o.Status != "Served")
             .OrderByDescending(o => o.CreatedTime)
             .FirstOrDefaultAsync();
         if (order == null)

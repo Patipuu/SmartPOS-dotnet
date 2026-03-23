@@ -13,3 +13,9 @@ public class LoginResponse
     public string Role { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
 }
+
+public class ChangePasswordRequest
+{
+    public string CurrentPassword { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
+}

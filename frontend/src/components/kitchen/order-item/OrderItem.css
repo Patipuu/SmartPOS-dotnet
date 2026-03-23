@@ -36,6 +36,20 @@
   font-size: 0.9rem;
 }
 
+.kot-timer {
+  font-size: 0.85rem;
+  color: #27ae60;
+  font-weight: 600;
+  background: #eafff2;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.kot-timer.timer-over {
+  color: #ffffff;
+  background: #e74c3c;
+}
+
 .order-items {
   display: flex;
   flex-direction: column;

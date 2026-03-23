@@ -25,3 +25,39 @@
 .inventory-placeholder li {
   margin: 8px 0;
 }
+
+.inventory-placeholder .form-group {
+  margin: 12px 0;
+}
+
+.inventory-placeholder .form-group label {
+  display: block;
+  font-size: 0.85rem;
+  color: #555;
+  margin-bottom: 4px;
+}
+
+.inventory-placeholder input,
+.inventory-placeholder select,
+.inventory-placeholder textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.inventory-placeholder table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  background: white;
+}
+
+.inventory-placeholder th,
+.inventory-placeholder td {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+  font-size: 0.95rem;
+}

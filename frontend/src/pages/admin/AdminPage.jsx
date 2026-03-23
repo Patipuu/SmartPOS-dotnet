@@ -7,6 +7,7 @@ import OrderReport from '../../components/admin/order-report/OrderReport'
 import UserManagement from '../../components/admin/user-management/UserManagement'
 import InventoryPlaceholder from '../../components/admin/inventory-placeholder/InventoryPlaceholder'
 import AlertsPlaceholder from '../../components/admin/alerts-placeholder/AlertsPlaceholder'
+import TablesManagement from '../../components/admin/tables-management/TablesManagement'
 import './AdminPage.css'
 
 const AdminPage = () => {
@@ -16,6 +17,7 @@ const AdminPage = () => {
     { id: 'menu', label: 'Quản lý Món & Giá' },
     { id: 'category', label: 'Quản lý Danh mục' },
     { id: 'users', label: 'Người dùng & Phân quyền' },
+    { id: 'tables', label: 'Quản lý Bàn & QR' },
     { id: 'inventory', label: 'Tồn kho & Công thức' },
     { id: 'revenue', label: 'Báo cáo Doanh thu' },
     { id: 'orders', label: 'Báo cáo Đơn hàng' },
@@ -45,6 +47,7 @@ const AdminPage = () => {
             {activeTab === 'menu' && <MenuManagement />}
             {activeTab === 'category' && <CategoryManagement />}
             {activeTab === 'users' && <UserManagement />}
+            {activeTab === 'tables' && <TablesManagement />}
             {activeTab === 'inventory' && <InventoryPlaceholder />}
             {activeTab === 'revenue' && <RevenueReport />}
             {activeTab === 'orders' && <OrderReport />}

@@ -1,19 +1,20 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { apiClient } from '../../../api/client'
 import { useOrderHubKitchen } from '../../../hooks/useOrderHub'
 import OrderItem from '../order-item/OrderItem'
 import './OrderList.css'
 
 const normalizeOrder = (o) => ({
-  id: o.id,
+  orderId: o.orderId,
   tableId: o.tableId,
   tableName: o.tableName,
-  createdAt: o.createdAt,
+  createdTime: o.createdTime,
+  status: o.status,
   items: (o.items || []).map((i) => ({
-    id: i.id,
-    name: i.menuItemName,
+    orderItemId: i.orderItemId,
+    menuItemName: i.menuItemName,
     quantity: i.quantity,
-    status: (i.status || '').toLowerCase(),
+    status: i.status,
     note: i.note,
   })),
 })
@@ -31,18 +32,23 @@ const OrderList = () => {
       .finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => {
-    fetchOrders()
-  }, [fetchOrders])
-
-  useOrderHubKitchen((newOrder) => {
+  const handleNewOrder = useCallback((newOrder) => {
     setOrders((prev) => {
       const normalized = normalizeOrder(newOrder)
-      const exists = prev.some((o) => o.id === normalized.id)
-      if (exists) return prev.map((o) => (o.id === normalized.id ? normalized : o))
+      const exists = prev.some((o) => o.orderId === normalized.orderId)
+      if (exists) return prev.map((o) => (o.orderId === normalized.orderId ? normalized : o))
       return [normalized, ...prev]
     })
-  })
+  }, [])
+
+  useOrderHubKitchen(handleNewOrder)
+
+  useEffect(() => {
+    fetchOrders()
+    // Polling fallback to avoid missing SignalR events
+    const id = setInterval(fetchOrders, 2500)
+    return () => clearInterval(id)
+  }, [fetchOrders])
 
   if (loading) return <div className="order-list"><p>Đang tải...</p></div>
   if (error) return <div className="order-list"><p className="order-list-error">{error}</p></div>
@@ -55,7 +61,7 @@ const OrderList = () => {
       ) : (
         <div className="orders">
           {orders.map((order) => (
-            <OrderItem key={order.id} order={order} onStatusUpdated={fetchOrders} />
+            <OrderItem key={order.orderId} order={order} onStatusUpdated={fetchOrders} />
           ))}
         </div>
       )}

@@ -3,12 +3,12 @@ import { apiClient } from '../../../api/client'
 import './CategoryManagement.css'
 
 const CategoryManagement = () => {
-  const [categories, setCategories] = useState([])
+  const [menus, setMenus] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({ name: '', description: '', sortOrder: 0 })
 
   const fetchCategories = useCallback(() => {
-    apiClient.get('/api/Admin/categories').then(({ data }) => setCategories(Array.isArray(data) ? data : []))
+    apiClient.get('/api/Admin/categories').then(({ data }) => setMenus(Array.isArray(data) ? data : []))
   }, [])
 
   useEffect(() => {
@@ -88,10 +88,10 @@ const CategoryManagement = () => {
       )}
 
       <div className="categories-grid">
-        {categories.map((category) => (
-          <div key={category.id} className="category-card">
-            <h3>{category.name}</h3>
-            <p>{category.description || '-'}</p>
+        {menus.map((menu) => (
+          <div key={menu.menuId} className="category-card">
+            <h3>{menu.name}</h3>
+            <p>-</p>
           </div>
         ))}
       </div>

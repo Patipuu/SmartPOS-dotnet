@@ -19,6 +19,11 @@ public class OrderHub : Hub
         await Groups.AddToGroupAsync(Context.ConnectionId, "kitchen");
     }
 
+    public async Task JoinCashierGroup()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, "cashier");
+    }
+
     public async Task SendOrderUpdate(string tableId, object orderData)
     {
         await Clients.Group($"table-{tableId}").SendAsync("OrderUpdated", orderData);

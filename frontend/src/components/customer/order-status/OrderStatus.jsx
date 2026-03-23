@@ -1,34 +1,63 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { apiClient } from '../../../api/client'
 import { useOrderHubTable } from '../../../hooks/useOrderHub'
 import './OrderStatus.css'
 
-const OrderStatus = ({ tableId }) => {
+const OrderStatus = ({ tableId, onOrderCleared }) => {
   const [orderStatus, setOrderStatus] = useState(null)
   const [requestingPayment, setRequestingPayment] = useState(false)
   const { orderStatus: signalRStatus } = useOrderHubTable(tableId)
 
-  const fetchStatus = () => {
+  const normalize = (dto) => {
+    if (!dto) return null
+    return {
+      orderId: dto.orderId,
+      tableId: dto.tableId,
+      status: dto.status,
+      requestPayment: dto.requestPayment,
+      items: (dto.items || []).map((i) => ({
+        orderItemId: i.orderItemId,
+        menuItemName: i.menuItemName,
+        quantity: i.quantity,
+        status: i.status,
+      })),
+    }
+  }
+
+  const fetchStatus = useCallback(() => {
     if (tableId == null) return
     apiClient
       .get('/api/Customer/order/status', { params: { tableId } })
-      .then(({ data }) => setOrderStatus(data))
+      .then(({ data }) => {
+        const next = normalize(data)
+        setOrderStatus((prev) => {
+          if (prev != null && next === null && onOrderCleared) queueMicrotask(() => onOrderCleared())
+          return next
+        })
+      })
       .catch(() => setOrderStatus(null))
-  }
+  }, [tableId, onOrderCleared])
 
   useEffect(() => {
     fetchStatus()
-  }, [tableId])
+    const id = setInterval(fetchStatus, 2000)
+    return () => clearInterval(id)
+  }, [fetchStatus])
 
   useEffect(() => {
-    if (signalRStatus) setOrderStatus(signalRStatus)
-  }, [signalRStatus])
+    if (signalRStatus?.__cleared) {
+      setOrderStatus(null)
+      onOrderCleared?.()
+      return
+    }
+    if (signalRStatus != null) setOrderStatus(normalize(signalRStatus))
+  }, [signalRStatus, onOrderCleared])
 
   const handleRequestPayment = async () => {
-    if (!orderStatus?.id) return
+    if (!orderStatus?.orderId) return
     setRequestingPayment(true)
     try {
-      await apiClient.post(`/api/Customer/order/${orderStatus.id}/request-payment`)
+      await apiClient.post(`/api/Customer/order/${orderStatus.orderId}/request-payment`)
       fetchStatus()
     } finally {
       setRequestingPayment(false)
@@ -36,7 +65,7 @@ const OrderStatus = ({ tableId }) => {
   }
 
   const getStatusText = (status) => {
-    const map = { Pending: 'Đang chờ', Preparing: 'Đang chế biến', Ready: 'Sẵn sàng', Served: 'Đã phục vụ' }
+    const map = { Pending: 'Đang chờ', Preparing: 'Đang chế biến', Ready: 'Sẵn sàng', Served: 'Đã phục vụ', Rejected: 'Từ chối' }
     return map[status] || status
   }
 
@@ -50,8 +79,8 @@ const OrderStatus = ({ tableId }) => {
       ) : (
         <>
           <div className="orders-list">
-            {items.map((item) => (
-              <div key={item.id} className="order-item">
+          {items.map((item) => (
+            <div key={item.orderItemId} className="order-item">
                 <div className="order-info">
                   <span className="order-name">{item.menuItemName}</span>
                   <span className="order-quantity">x{item.quantity}</span>
@@ -62,7 +91,7 @@ const OrderStatus = ({ tableId }) => {
               </div>
             ))}
           </div>
-          {orderStatus.id && !orderStatus.requestPayment && (
+          {orderStatus.orderId && !orderStatus.requestPayment && (
             <button
               type="button"
               className="btn btn-success btn-request-payment"

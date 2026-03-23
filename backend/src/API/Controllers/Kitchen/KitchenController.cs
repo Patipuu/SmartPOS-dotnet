@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using API.Data.DbContext;
 using API.Models.DTOs;
+using API.Services;
 
 namespace API.Controllers.Kitchen;
 
@@ -12,10 +13,12 @@ namespace API.Controllers.Kitchen;
 public class KitchenController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly IInventoryService _inventoryService;
 
-    public KitchenController(ApplicationDbContext db)
+    public KitchenController(ApplicationDbContext db, IInventoryService inventoryService)
     {
         _db = db;
+        _inventoryService = inventoryService;
     }
 
     [HttpGet("orders")]
@@ -66,6 +69,18 @@ public class KitchenController : ControllerBase
         if (item == null) return NotFound();
         item.Status = request.Status;
         await _db.SaveChangesAsync();
+
+        if (request.Status == "Ready")
+        {
+            try
+            {
+                await _inventoryService.DeductByBOM(item.MenuItemId, item.Quantity);
+            }
+            catch
+            {
+                // Log but do not rollback KOT status
+            }
+        }
         return Ok(new { message = $"Order item {itemId} status updated" });
     }
 }

@@ -31,8 +31,12 @@ const StatusUpdate = ({ itemId, currentStatus, onUpdated }) => {
 
   return (
     <div className="status-update">
-      {getStatusButton('preparing', 'Đang chế biến')}
-      {getStatusButton('ready', 'Hoàn thành')}
+      {status === 'pending' && getStatusButton('preparing', 'Nhận')}
+      {status === 'preparing' && getStatusButton('ready', 'Hoàn thành')}
+
+      {(status !== 'pending' && status !== 'preparing') && (
+        <div className="status-placeholder">Trạng thái hiện tại: {currentStatus}</div>
+      )}
     </div>
   )
 }

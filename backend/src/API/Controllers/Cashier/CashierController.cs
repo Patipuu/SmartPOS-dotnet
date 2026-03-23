@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using API.Data.DbContext;
 using API.Data.Entities;
+using API.Hubs;
 using API.Models.DTOs;
 
 namespace API.Controllers.Cashier;
@@ -14,10 +16,12 @@ namespace API.Controllers.Cashier;
 public class CashierController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly IHubContext<OrderHub> _orderHub;
 
-    public CashierController(ApplicationDbContext db)
+    public CashierController(ApplicationDbContext db, IHubContext<OrderHub> orderHub)
     {
         _db = db;
+        _orderHub = orderHub;
     }
 
     [HttpGet("invoices")]
@@ -121,8 +125,27 @@ public class CashierController : ControllerBase
         var order = await _db.Orders.Include(o => o.Table).FirstOrDefaultAsync(o => o.OrderId == invoice.OrderId);
         if (order != null)
         {
-            order.Status = "Served";
+            // PRD acceptance: sau khi thanh toán, bàn về 'Trống' và KDS không còn hiển thị KOT.
+            // Backend hiện tại đánh dấu Served theo invoice.OrderId. Nếu có nhiều Order active cùng bàn,
+            // Kitchen vẫn còn hiển thị các Order khác vì filter theo Order.Status != 'Served'.
+            // Vì vậy, khi thanh toán một invoice cho bàn này, đánh dấu Served cho toàn bộ Orders của TableId.
+            var tableId = order.TableId;
+
+            var tableOrders = await _db.Orders
+                .Where(o => o.TableId == tableId && o.Status != "Cancelled")
+                .ToListAsync();
+
+            foreach (var o in tableOrders)
+            {
+                o.Status = "Served";
+            }
+
             order.Table.Status = "Available";
+
+            // Realtime: clear customer order status, notify cashier to refresh
+            var tableIdStr = order.TableId.ToString();
+            await _orderHub.Clients.Group($"table-{tableIdStr}").SendAsync("OrderUpdated", (object?)null);
+            await _orderHub.Clients.Group("cashier").SendAsync("PaymentProcessed", new { tableId = order.TableId });
         }
         await _db.SaveChangesAsync();
         return Ok(new { message = "Payment processed" });
@@ -132,6 +155,112 @@ public class CashierController : ControllerBase
     public IActionResult PrintInvoice(int invoiceId)
     {
         return Ok(new { message = $"Print invoice {invoiceId}" });
+    }
+
+    [HttpGet("terminals")]
+    public async Task<IActionResult> GetTerminals()
+    {
+        var list = await _db.Terminals
+            .AsNoTracking()
+            .Select(t => new { t.TerminalId, t.Location })
+            .ToListAsync();
+        return Ok(list);
+    }
+
+    // ─── POS Session ─────────────────────────────────────────────────────────
+    [HttpGet("session/current")]
+    public async Task<IActionResult> GetCurrentSession()
+    {
+        var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : 0;
+        var session = await _db.POSSessions
+            .AsNoTracking()
+            .Where(s => s.UserId == userId && s.CloseTime == null)
+            .OrderByDescending(s => s.OpenTime)
+            .FirstOrDefaultAsync();
+        if (session == null) return Ok((object?)null);
+        return Ok(new SessionCurrentDto
+        {
+            SessionId = session.SessionId,
+            OpenTime = session.OpenTime,
+            OpenCash = session.OpenCash
+        });
+    }
+
+    [HttpPost("session/open")]
+    public async Task<IActionResult> OpenSession([FromBody] SessionOpenRequest request)
+    {
+        var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : 0;
+        var existing = await _db.POSSessions.AnyAsync(s => s.UserId == userId && s.CloseTime == null);
+        if (existing) return Conflict(new { message = "Đã có ca đang mở" });
+
+        var terminal = await _db.Terminals.FindAsync(request.TerminalId);
+        if (terminal == null) return BadRequest(new { message = "Terminal not found" });
+
+        var session = new POSSession
+        {
+            UserId = userId,
+            TerminalId = request.TerminalId,
+            OpenTime = DateTime.UtcNow,
+            OpenCash = request.OpenCash,
+            CashDifference = 0
+        };
+        _db.POSSessions.Add(session);
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Session opened", sessionId = session.SessionId });
+    }
+
+    [HttpPost("session/close")]
+    public async Task<IActionResult> CloseSession([FromBody] SessionCloseRequest request)
+    {
+        var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : 0;
+        var session = await _db.POSSessions
+            .FirstOrDefaultAsync(s => s.UserId == userId && s.CloseTime == null);
+        if (session == null) return BadRequest(new { message = "Không có ca đang mở" });
+
+        var diff = request.CloseCash - session.OpenCash;
+        if (diff != 0 && string.IsNullOrWhiteSpace(request.CloseNote))
+            return BadRequest(new { message = "Chênh lệch != 0 → bắt buộc nhập ghi chú lý do" });
+
+        session.CloseTime = DateTime.UtcNow;
+        session.CashDifference = diff;
+        session.CloseNote = request.CloseNote;
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Session closed", cashDifference = diff });
+    }
+
+    [HttpGet("tables")]
+    public async Task<IActionResult> GetTables()
+    {
+        var tables = await _db.Tables
+            .AsNoTracking()
+            .OrderBy(t => t.TableId)
+            .Select(t => new { t.TableId, t.Code, TableName = t.Name ?? $"Bàn {t.TableId}", t.Status, t.Capacity, t.Area })
+            .ToListAsync();
+
+        var kitchenOrders = await _db.Orders
+            .Where(o => o.Status != "Cancelled" && o.Status != "Served")
+            .Select(o => o.TableId)
+            .Distinct()
+            .ToListAsync();
+        var pendingTableIds = await _db.Orders
+            .Where(o => o.RequestPayment && o.Invoice == null && o.Status != "Cancelled")
+            .Select(o => o.TableId)
+            .Distinct()
+            .ToListAsync();
+
+        var activeServing = new HashSet<int>(kitchenOrders);
+        var activePayment = new HashSet<int>(pendingTableIds);
+
+        var result = tables.Select(t => new
+        {
+            t.TableId,
+            t.Code,
+            tableName = t.TableName,
+            status = activePayment.Contains(t.TableId) ? "PAYMENT_PENDING" : activeServing.Contains(t.TableId) ? "SERVING" : (t.Status == "Occupied" ? "SERVING" : "AVAILABLE"),
+            t.Capacity,
+            t.Area
+        }).ToList();
+        return Ok(result);
     }
 }
 

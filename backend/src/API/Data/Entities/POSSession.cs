@@ -8,7 +8,9 @@ public class POSSession
     public int SessionId { get; set; }
     public DateTime OpenTime { get; set; }
     public DateTime? CloseTime { get; set; }
+    public decimal OpenCash { get; set; }
     public decimal CashDifference { get; set; }
+    public string? CloseNote { get; set; }
     public int UserId { get; set; }
     public int TerminalId { get; set; }
 

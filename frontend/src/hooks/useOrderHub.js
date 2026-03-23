@@ -11,19 +11,20 @@ export function useOrderHubTable(tableId) {
   const [orderStatus, setOrderStatus] = useState(null)
   const [connectionState, setConnectionState] = useState(SignalR.HubConnectionState.Disconnected)
   const [error, setError] = useState(null)
-  const connectionRef = useState(null)[0]
 
   useEffect(() => {
     if (tableId == null || tableId === '') return
 
     const url = getSignalRUrl('/hubs/order')
     const connection = new SignalR.HubConnectionBuilder()
-      .withUrl(url)
+      .withUrl(url, {
+        accessTokenFactory: () => localStorage.getItem('token') ?? '',
+      })
       .withAutomaticReconnect()
       .build()
 
     connection.on('OrderUpdated', (data) => {
-      setOrderStatus(data)
+      setOrderStatus(data === null || data === undefined ? { __cleared: true } : data)
     })
 
     connection
@@ -61,7 +62,9 @@ export function useOrderHubKitchen(onNewOrder) {
   useEffect(() => {
     const url = getSignalRUrl('/hubs/order')
     const connection = new SignalR.HubConnectionBuilder()
-      .withUrl(url)
+      .withUrl(url, {
+        accessTokenFactory: () => localStorage.getItem('token') ?? '',
+      })
       .withAutomaticReconnect()
       .build()
 
@@ -74,6 +77,50 @@ export function useOrderHubKitchen(onNewOrder) {
       .then(() => {
         setConnectionState(connection.state)
         return connection.invoke('JoinKitchenGroup')
+      })
+      .catch((err) => setError(err.message))
+
+    const onStateChange = () => setConnectionState(connection.state)
+    connection.onreconnecting(onStateChange)
+    connection.onreconnected(onStateChange)
+    connection.onclose(onStateChange)
+
+    return () => {
+      connection.stop()
+    }
+  }, [callbackRef])
+
+  return { connectionState, error }
+}
+
+/**
+ * Connect to OrderHub and join cashier group for payment events.
+ * @param {function} onPaymentProcessed - Callback when PaymentProcessed is received
+ * @returns {{ connectionState: string, error: string | null }}
+ */
+export function useOrderHubCashier(onPaymentProcessed) {
+  const [connectionState, setConnectionState] = useState(SignalR.HubConnectionState.Disconnected)
+  const [error, setError] = useState(null)
+  const callbackRef = useCallback(onPaymentProcessed, [onPaymentProcessed])
+
+  useEffect(() => {
+    const url = getSignalRUrl('/hubs/order')
+    const connection = new SignalR.HubConnectionBuilder()
+      .withUrl(url, {
+        accessTokenFactory: () => localStorage.getItem('token') ?? '',
+      })
+      .withAutomaticReconnect()
+      .build()
+
+    connection.on('PaymentProcessed', (data) => {
+      callbackRef(data)
+    })
+
+    connection
+      .start()
+      .then(() => {
+        setConnectionState(connection.state)
+        return connection.invoke('JoinCashierGroup')
       })
       .catch((err) => setError(err.message))
 

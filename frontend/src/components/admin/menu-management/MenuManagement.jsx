@@ -1,77 +1,107 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { apiClient } from '../../../api/client'
 import './MenuManagement.css'
 
 const MenuManagement = () => {
   const [menuItems, setMenuItems] = useState([])
-  const [categories, setCategories] = useState([])
+  const [menus, setMenus] = useState([]) // categories in PRD = menus in backend
   const [showForm, setShowForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
     price: '',
-    categoryId: '',
+    menuId: '',
     description: '',
+    imageUrl: '',
     isAvailable: true,
     sortOrder: 0,
   })
 
-  const fetchMenu = useCallback(() => {
-    apiClient.get('/api/Admin/menu').then(({ data }) => setMenuItems(Array.isArray(data) ? data : []))
+  const fetchMenu = useCallback(async () => {
+    const { data } = await apiClient.get('/api/Admin/menu')
+    setMenuItems(Array.isArray(data) ? data : [])
   }, [])
 
-  const fetchCategories = useCallback(() => {
-    apiClient.get('/api/Admin/categories').then(({ data }) => setCategories(Array.isArray(data) ? data : []))
+  const fetchMenus = useCallback(async () => {
+    const { data } = await apiClient.get('/api/Admin/categories')
+    setMenus(Array.isArray(data) ? data : [])
   }, [])
 
   useEffect(() => {
     fetchMenu()
-    fetchCategories()
-  }, [fetchMenu, fetchCategories])
+    fetchMenus()
+  }, [fetchMenu, fetchMenus])
+
+  const resetForm = useCallback(() => {
+    const firstMenuId = menus?.[0]?.menuId ?? ''
+    setEditingItem(null)
+    setFormData({
+      name: '',
+      price: '',
+      menuId: firstMenuId,
+      description: '',
+      imageUrl: '',
+      isAvailable: true,
+      sortOrder: 0,
+    })
+  }, [menus])
+
+  useEffect(() => {
+    // if menus loaded later, ensure menuId exists for create mode
+    if (!showForm) return
+    if (!formData.menuId && menus?.[0]?.menuId) {
+      setFormData((prev) => ({ ...prev, menuId: menus[0].menuId }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menus])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
     const payload = {
-      categoryId: Number(formData.categoryId),
+      menuId: Number(formData.menuId),
       name: formData.name,
       description: formData.description || null,
+      imageUrl: formData.imageUrl || null,
       price: Number(formData.price),
-      isAvailable: formData.isAvailable,
+      isAvailable: !!formData.isAvailable,
       sortOrder: Number(formData.sortOrder) || 0,
     }
+
     try {
       if (editingItem) {
-        await apiClient.put(`/api/Admin/menu/${editingItem.id}`, payload)
+        await apiClient.put(`/api/Admin/menu/${editingItem.menuItemId}`, payload)
       } else {
         await apiClient.post('/api/Admin/menu', payload)
       }
-      fetchMenu()
+      await fetchMenu()
       setShowForm(false)
-      setEditingItem(null)
-      setFormData({ name: '', price: '', categoryId: '', description: '', isAvailable: true, sortOrder: 0 })
+      resetForm()
     } catch (err) {
       console.error(err)
+      alert('Lưu món thất bại')
     }
   }
 
   const handleEdit = (item) => {
     setEditingItem(item)
     setFormData({
-      name: item.name,
-      price: item.price,
-      categoryId: String(item.categoryId),
+      name: item.name || '',
+      price: item.price ?? '',
+      menuId: item.menuId ?? '',
       description: item.description || '',
+      imageUrl: item.imageUrl || '',
       isAvailable: item.isAvailable !== false,
-      sortOrder: item.sortOrder || 0,
+      sortOrder: item.sortOrder ?? 0,
     })
     setShowForm(true)
   }
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (menuItemId) => {
     if (!window.confirm('Bạn có chắc muốn xóa món này?')) return
     try {
-      await apiClient.delete(`/api/Admin/menu/${id}`)
-      fetchMenu()
+      await apiClient.delete(`/api/Admin/menu/${menuItemId}`)
+      await fetchMenu()
     } catch (err) {
       console.error(err)
     }
@@ -85,8 +115,7 @@ const MenuManagement = () => {
           type="button"
           className="btn btn-primary"
           onClick={() => {
-            setEditingItem(null)
-            setFormData({ name: '', price: '', categoryId: categories[0]?.id ?? '', description: '', isAvailable: true, sortOrder: 0 })
+            resetForm()
             setShowForm(true)
           }}
         >
@@ -108,6 +137,7 @@ const MenuManagement = () => {
                   required
                 />
               </div>
+
               <div className="form-group">
                 <label>Giá (đ)</label>
                 <input
@@ -117,19 +147,23 @@ const MenuManagement = () => {
                   required
                 />
               </div>
+
               <div className="form-group">
                 <label>Danh mục</label>
                 <select
-                  value={formData.categoryId}
-                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                  value={formData.menuId}
+                  onChange={(e) => setFormData({ ...formData, menuId: e.target.value })}
                   required
                 >
                   <option value="">Chọn danh mục</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  {menus.map((m) => (
+                    <option key={m.menuId} value={m.menuId}>
+                      {m.name}
+                    </option>
                   ))}
                 </select>
               </div>
+
               <div className="form-group">
                 <label>Mô tả</label>
                 <textarea
@@ -137,14 +171,47 @@ const MenuManagement = () => {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 />
               </div>
+
+              <div className="form-group">
+                <label>ImageUrl (thumbnail)</label>
+                <input
+                  type="text"
+                  value={formData.imageUrl}
+                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                  placeholder="VD: https://.../image.jpg"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={formData.isAvailable}
+                    onChange={(e) => setFormData({ ...formData, isAvailable: e.target.checked })}
+                  />
+                  Hiện món trên QR Menu
+                </label>
+              </div>
+
+              <div className="form-group">
+                <label>Thứ tự hiển thị</label>
+                <input
+                  type="number"
+                  value={formData.sortOrder}
+                  onChange={(e) => setFormData({ ...formData, sortOrder: e.target.value })}
+                />
+              </div>
+
               <div className="form-actions">
-                <button type="submit" className="btn btn-success">Lưu</button>
+                <button type="submit" className="btn btn-success">
+                  Lưu
+                </button>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => {
                     setShowForm(false)
-                    setEditingItem(null)
+                    resetForm()
                   }}
                 >
                   Hủy
@@ -163,19 +230,25 @@ const MenuManagement = () => {
               <th>Tên món</th>
               <th>Giá</th>
               <th>Danh mục</th>
+              <th>Trạng thái</th>
               <th>Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {menuItems.map((item) => (
-              <tr key={item.id}>
-                <td>{item.id}</td>
+              <tr key={item.menuItemId}>
+                <td>{item.menuItemId}</td>
                 <td>{item.name}</td>
                 <td>{Number(item.price).toLocaleString('vi-VN')} đ</td>
-                <td>{item.categoryName ?? item.categoryId}</td>
+                <td>{item.menuName ?? item.menuId}</td>
+                <td>{item.isAvailable === false ? 'Ẩn' : 'Hiện'}</td>
                 <td>
-                  <button type="button" className="btn-edit" onClick={() => handleEdit(item)}>Sửa</button>
-                  <button type="button" className="btn-delete" onClick={() => handleDelete(item.id)}>Xóa</button>
+                  <button type="button" className="btn-edit" onClick={() => handleEdit(item)}>
+                    Sửa
+                  </button>
+                  <button type="button" className="btn-delete" onClick={() => handleDelete(item.menuItemId)}>
+                    Xóa
+                  </button>
                 </td>
               </tr>
             ))}
