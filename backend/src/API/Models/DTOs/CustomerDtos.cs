@@ -47,8 +47,15 @@ public class OrderStatusDto
     public List<OrderItemStatusDto> Items { get; set; } = new();
 }
 
+public class TableOrdersStatusDto
+{
+    public int TableId { get; set; }
+    public List<OrderStatusDto> Orders { get; set; } = new();
+}
+
 public class OrderItemStatusDto
 {
+    public int OrderId { get; set; }
     public int OrderItemId { get; set; }
     public string MenuItemName { get; set; } = string.Empty;
     public int Quantity { get; set; }

@@ -4,11 +4,11 @@ import { useOrderHubTable } from '../../../hooks/useOrderHub'
 import './OrderStatus.css'
 
 const OrderStatus = ({ tableId, onOrderCleared }) => {
-  const [orderStatus, setOrderStatus] = useState(null)
+  const [ordersStatus, setOrdersStatus] = useState([])
   const [requestingPayment, setRequestingPayment] = useState(false)
   const { orderStatus: signalRStatus } = useOrderHubTable(tableId)
 
-  const normalize = (dto) => {
+  const normalizeOrder = (dto) => {
     if (!dto) return null
     return {
       orderId: dto.orderId,
@@ -24,18 +24,29 @@ const OrderStatus = ({ tableId, onOrderCleared }) => {
     }
   }
 
+  const normalizeOrders = (dto) => {
+    if (!dto) return []
+    // Backward compatible: old API returned a single order object.
+    if (dto.orderId != null) {
+      const single = normalizeOrder(dto)
+      return single ? [single] : []
+    }
+    const orders = Array.isArray(dto.orders) ? dto.orders : []
+    return orders.map(normalizeOrder).filter(Boolean)
+  }
+
   const fetchStatus = useCallback(() => {
     if (tableId == null) return
     apiClient
       .get('/api/Customer/order/status', { params: { tableId } })
       .then(({ data }) => {
-        const next = normalize(data)
-        setOrderStatus((prev) => {
-          if (prev != null && next === null && onOrderCleared) queueMicrotask(() => onOrderCleared())
+        const next = normalizeOrders(data)
+        setOrdersStatus((prev) => {
+          if (prev.length > 0 && next.length === 0 && onOrderCleared) queueMicrotask(() => onOrderCleared())
           return next
         })
       })
-      .catch(() => setOrderStatus(null))
+      .catch(() => setOrdersStatus([]))
   }, [tableId, onOrderCleared])
 
   useEffect(() => {
@@ -46,18 +57,18 @@ const OrderStatus = ({ tableId, onOrderCleared }) => {
 
   useEffect(() => {
     if (signalRStatus?.__cleared) {
-      setOrderStatus(null)
+      setOrdersStatus([])
       onOrderCleared?.()
       return
     }
-    if (signalRStatus != null) setOrderStatus(normalize(signalRStatus))
+    // SignalR payload currently sends a single order; keep polling as source of truth for full list.
   }, [signalRStatus, onOrderCleared])
 
-  const handleRequestPayment = async () => {
-    if (!orderStatus?.orderId) return
+  const handleRequestPayment = async (orderId) => {
+    if (!orderId) return
     setRequestingPayment(true)
     try {
-      await apiClient.post(`/api/Customer/order/${orderStatus.orderId}/request-payment`)
+      await apiClient.post(`/api/Customer/order/${orderId}/request-payment`)
       fetchStatus()
     } finally {
       setRequestingPayment(false)
@@ -69,41 +80,44 @@ const OrderStatus = ({ tableId, onOrderCleared }) => {
     return map[status] || status
   }
 
-  const items = orderStatus?.items || []
+  const hasOrders = ordersStatus.length > 0
 
   return (
     <div className="order-status">
       <h2>Trạng thái đơn hàng</h2>
-      {!orderStatus ? (
+      {!hasOrders ? (
         <p className="no-orders">Chưa có đơn hàng</p>
       ) : (
         <>
-          <div className="orders-list">
-          {items.map((item) => (
-            <div key={item.orderItemId} className="order-item">
-                <div className="order-info">
-                  <span className="order-name">{item.menuItemName}</span>
-                  <span className="order-quantity">x{item.quantity}</span>
+          {ordersStatus.map((order) => (
+            <div key={order.orderId} className="orders-list">
+              <h4>Đợt #{order.orderId}</h4>
+              {order.items.map((item) => (
+                <div key={item.orderItemId} className="order-item">
+                  <div className="order-info">
+                    <span className="order-name">{item.menuItemName}</span>
+                    <span className="order-quantity">x{item.quantity}</span>
+                  </div>
+                  <span className={`status-badge status-${(item.status || '').toLowerCase()}`}>
+                    {getStatusText(item.status)}
+                  </span>
                 </div>
-                <span className={`status-badge status-${(item.status || '').toLowerCase()}`}>
-                  {getStatusText(item.status)}
-                </span>
-              </div>
-            ))}
-          </div>
-          {orderStatus.orderId && !orderStatus.requestPayment && (
-            <button
-              type="button"
-              className="btn btn-success btn-request-payment"
-              onClick={handleRequestPayment}
-              disabled={requestingPayment}
-            >
-              {requestingPayment ? 'Đang gửi...' : 'Yêu cầu thanh toán'}
-            </button>
-          )}
-          {orderStatus.requestPayment && (
-            <p className="payment-requested">Đã yêu cầu thanh toán</p>
-          )}
+              ))}
+              {!order.requestPayment && (
+                <button
+                  type="button"
+                  className="btn btn-success btn-request-payment"
+                  onClick={() => handleRequestPayment(order.orderId)}
+                  disabled={requestingPayment}
+                >
+                  {requestingPayment ? 'Đang gửi...' : 'Yêu cầu thanh toán'}
+                </button>
+              )}
+              {order.requestPayment && (
+                <p className="payment-requested">Đã yêu cầu thanh toán</p>
+              )}
+            </div>
+          ))}
         </>
       )}
     </div>

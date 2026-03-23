@@ -34,6 +34,13 @@ const CustomerPage = () => {
   const [tableError, setTableError] = useState('')
   const [orderSent, setOrderSent] = useState(null) // { orderId, itemsSummary: [] }
 
+  const resetCustomerSession = useCallback(() => {
+    setOrderSent(null)
+    setCartItems([])
+    setShowMenu(false)
+    setTable(null)
+  }, [])
+
   const handleQRScanned = useCallback(async (scannedCode) => {
     setTableError('')
     setLoadingTable(true)
@@ -82,7 +89,7 @@ const CustomerPage = () => {
     async (note) => {
       if (!table || cartItems.length === 0) return { success: false, message: 'Giỏ hàng trống' }
       try {
-        const res = await apiClient.post('/api/Customer/order', {
+        const payload = {
           tableId: table.tableId,
           note: note || null,
           items: cartItems.map((i) => ({
@@ -90,23 +97,36 @@ const CustomerPage = () => {
             quantity: i.quantity,
             note: (i.note || null),
           })),
-        })
+        }
+
+        const currentOrderId = orderSent?.orderId ?? null
+        console.log('[F1] Payload gui len:', JSON.stringify(payload, null, 2))
+        console.log('[F1] order_id hien tai trong state/store:', currentOrderId)
+        console.log('[F1] table_id:', table.tableId)
+
+        const res = await apiClient.post('/api/Customer/order', payload)
+        console.log('[F2] Response tu server:', JSON.stringify(res?.data ?? null, null, 2))
 
         const orderId = res?.data?.orderId
         setCartItems([])
-        setOrderSent({
+        const nextOrderSent = {
           orderId: orderId ?? null,
           itemsSummary: cartItems.map((i) => ({
             name: i.name,
             quantity: i.quantity,
           })),
-        })
+        }
+        setOrderSent(nextOrderSent)
+        console.log('[F2] State sau khi cap nhat:', JSON.stringify({
+          cartItemsAfterSubmit: [],
+          orderSentAfterSubmit: nextOrderSent,
+        }, null, 2))
         return { success: true, orderId }
       } catch (err) {
         return { success: false, message: err.response?.data?.message || 'Gửi đơn thất bại' }
       }
     },
-    [table, cartItems]
+    [table, cartItems, orderSent]
   )
 
   if (!table || !showMenu) {
@@ -155,7 +175,7 @@ const CustomerPage = () => {
               onUpdateNote={updateNote}
               onSubmitOrder={submitOrder}
             />
-            <OrderStatus tableId={table.tableId} onOrderCleared={() => setOrderSent(null)} />
+            <OrderStatus tableId={table.tableId} onOrderCleared={resetCustomerSession} />
           </div>
         </div>
       </div>

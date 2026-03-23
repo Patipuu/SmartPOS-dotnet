@@ -5,6 +5,7 @@ using API.Data.Entities;
 using API.Models.DTOs;
 using API.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using System.Text.Json;
 
 namespace API.Controllers.Customer;
 
@@ -19,6 +20,46 @@ public class CustomerController : ControllerBase
     {
         _db = db;
         _orderHub = orderHub;
+    }
+
+    private async Task<Order?> ConsolidateActiveOrderForTable(int tableId)
+    {
+        var activeOrders = await _db.Orders
+            .Include(o => o.OrderItems)
+            .Where(o => o.TableId == tableId && o.Status != "Cancelled" && o.Status != "Served")
+            .OrderBy(o => o.CreatedTime)
+            .ToListAsync();
+
+        if (activeOrders.Count == 0) return null;
+
+        var primaryOrder = activeOrders[0];
+        if (activeOrders.Count == 1) return primaryOrder;
+
+        foreach (var duplicate in activeOrders.Skip(1))
+        {
+            foreach (var duplicateItem in duplicate.OrderItems)
+            {
+                duplicateItem.OrderId = primaryOrder.OrderId;
+                duplicateItem.Status = "Pending";
+            }
+
+            if (duplicate.RequestPayment) primaryOrder.RequestPayment = true;
+
+            if (!string.IsNullOrWhiteSpace(duplicate.Note))
+            {
+                primaryOrder.Note = string.IsNullOrWhiteSpace(primaryOrder.Note)
+                    ? duplicate.Note
+                    : $"{primaryOrder.Note} | {duplicate.Note}";
+            }
+
+            duplicate.Status = "Cancelled";
+            duplicate.RequestPayment = false;
+            duplicate.UpdatedTime = DateTime.UtcNow;
+        }
+
+        primaryOrder.Status = "Pending";
+        primaryOrder.UpdatedTime = DateTime.UtcNow;
+        return primaryOrder;
     }
 
     [HttpGet("table/{code}")]
@@ -85,25 +126,75 @@ public class CustomerController : ControllerBase
     [HttpPost("order")]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderRequest request)
     {
+        Console.WriteLine($"[B1] Nhan order request: {JsonSerializer.Serialize(request)}");
+
         var table = await _db.Tables.FindAsync(request.TableId);
         if (table == null)
             return BadRequest(new { message = "Table not found" });
         if (request.Items == null || request.Items.Count == 0)
             return BadRequest(new { message = "Order must have at least one item" });
 
-        var order = new Order
-        {
-            TableId = request.TableId,
-            Note = request.Note,
-            Status = "Pending"
-        };
-        _db.Orders.Add(order);
-        await _db.SaveChangesAsync();
+        var validItems = request.Items.Where(i => i.Quantity > 0).ToList();
+        if (validItems.Count == 0)
+            return BadRequest(new { message = "Order must have at least one valid item" });
 
-        foreach (var item in request.Items)
+        var menuItemIds = validItems.Select(i => i.MenuItemId).Distinct().ToList();
+        var menuItems = await _db.MenuItems
+            .Where(m => menuItemIds.Contains(m.MenuItemId))
+            .ToDictionaryAsync(m => m.MenuItemId);
+
+        if (menuItems.Count == 0)
+            return BadRequest(new { message = "No valid menu items found" });
+
+        var activeOrdersForLog = await _db.Orders
+            .Include(o => o.OrderItems)
+            .Where(o => o.TableId == request.TableId && o.Status != "Cancelled" && o.Status != "Served")
+            .OrderBy(o => o.CreatedTime)
+            .ToListAsync();
+        var existingOrderForLog = activeOrdersForLog.FirstOrDefault();
+        Console.WriteLine($"[B2] Order active tim thay cho ban {request.TableId}: {(existingOrderForLog?.OrderId.ToString() ?? "KHONG CO")}");
+        Console.WriteLine($"[B2] So Order_Item hien tai: {(existingOrderForLog?.OrderItems?.Count ?? 0)}");
+
+        // Một bàn chỉ có 1 order active trong phiên hiện tại (tự hợp nhất nếu dữ liệu cũ bị tách).
+        var order = await ConsolidateActiveOrderForTable(request.TableId);
+
+        if (order == null)
         {
-            var menuItem = await _db.MenuItems.FindAsync(item.MenuItemId);
-            if (menuItem == null) continue;
+            order = new Order
+            {
+                TableId = request.TableId,
+                Note = request.Note,
+                Status = "Pending"
+            };
+            _db.Orders.Add(order);
+            await _db.SaveChangesAsync();
+        }
+        else
+        {
+            if (!string.IsNullOrWhiteSpace(request.Note))
+            {
+                order.Note = string.IsNullOrWhiteSpace(order.Note)
+                    ? request.Note
+                    : $"{order.Note} | {request.Note}";
+            }
+
+            // Nếu khách gọi thêm món thì đơn quay lại trạng thái xử lý và bỏ cờ yêu cầu thanh toán.
+            order.Status = "Pending";
+            order.RequestPayment = false;
+            order.UpdatedTime = DateTime.UtcNow;
+        }
+
+        var newItemsForLog = validItems.Select(item => new
+        {
+            item.MenuItemId,
+            item.Quantity,
+            item.Note
+        }).ToList();
+        Console.WriteLine($"[B3] Chuan bi luu. Order_Items se luu: {JsonSerializer.Serialize(newItemsForLog)}");
+
+        foreach (var item in validItems)
+        {
+            if (!menuItems.TryGetValue(item.MenuItemId, out var menuItem)) continue;
             _db.OrderItems.Add(new OrderItem
             {
                 OrderId = order.OrderId,
@@ -115,6 +206,8 @@ public class CustomerController : ControllerBase
             });
         }
         await _db.SaveChangesAsync();
+        var savedCount = await _db.OrderItems.CountAsync(oi => oi.OrderId == order.OrderId);
+        Console.WriteLine($"[B4] Da luu. Order_Items trong DB: {savedCount}");
 
         table.Status = "Occupied";
         await _db.SaveChangesAsync();
@@ -147,14 +240,17 @@ public class CustomerController : ControllerBase
     [HttpGet("order/status")]
     public async Task<IActionResult> GetOrderStatus([FromQuery] int tableId)
     {
-        // Chỉ trả về đơn đang active (Pending/Preparing/Ready). Đơn đã Served = đã thanh toán, không hiển thị cho khách mới quét QR.
+        // Đảm bảo trạng thái luôn chỉ còn một đơn active duy nhất cho mỗi bàn.
+        await ConsolidateActiveOrderForTable(tableId);
+        await _db.SaveChangesAsync();
+
         var order = await _db.Orders
             .AsNoTracking()
             .Where(o => o.TableId == tableId && o.Status != "Cancelled" && o.Status != "Served")
             .OrderByDescending(o => o.CreatedTime)
             .FirstOrDefaultAsync();
-        if (order == null)
-            return Ok((OrderStatusDto?)null);
+
+        if (order == null) return Ok((OrderStatusDto?)null);
 
         var items = await _db.OrderItems
             .AsNoTracking()
@@ -184,7 +280,12 @@ public class CustomerController : ControllerBase
     {
         var order = await _db.Orders.FindAsync(orderId);
         if (order == null) return NotFound();
-        order.RequestPayment = true;
+
+        var primaryOrder = await ConsolidateActiveOrderForTable(order.TableId);
+        if (primaryOrder == null) return NotFound();
+
+        primaryOrder.RequestPayment = true;
+        primaryOrder.UpdatedTime = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return Ok(new { message = "Payment requested" });
     }
